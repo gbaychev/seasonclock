@@ -6,12 +6,14 @@ local UIAnim = require "widgets/uianim"
 -- We need to check if this is enabled, the vanilla season manager doesn't have the necessary methods and causes the loading of a 
 -- saved game to hang. 
 local reignOfGiantsEnabled = false
+local shipwreckedEnabled = false
 local isFocused = false
 
 local SeasonClock = Class(Widget, function(self, autumn_color_option, winter_color_option, spring_color_option, summer_color_option, hover_text_option, hover_font_size, season_font_size, text_to_display)
 	Widget._ctor(self, "SeasonClock")
 
 	reignOfGiantsEnabled = IsDLCEnabled(REIGN_OF_GIANTS)
+	shipwreckedEnabled = IsDLCEnabled(CAPY_DLC)
 
 	-- Colors for the segments for the different seasons
 	self.SUMMER_COLOR = self:GetColorForUserOption(summer_color_option)
@@ -27,9 +29,21 @@ local SeasonClock = Class(Widget, function(self, autumn_color_option, winter_col
 	self.adjustedForDay = false
 
 	local totalDaysInYear, summerLength, autumnLength, winterLength, springLength = self:GetSeasonSegments()
-
+	local seasonManager = GetSeasonManager()
+	
 	-- DEBUG
-	print(string.format("Total Days in Year: [%s]. Summer Length: [%s]. Autumn Length: [%s]. Winter Length [%s]. Spring Length: [%s].", tostring(totalDaysInYear), tostring(summerLength), tostring(autumnLength), tostring(winterLength), tostring(springLength)))
+	print(string.format("Total Days in Year: [%s]. ",  tostring(totalDaysInYear)))
+	if seasonManager.seasonmode == "tropical" then
+		print(string.format("Mild Season Length [%s]. ",       tostring(winterLength)))
+		print(string.format("Wet Season Length: [%s].",        tostring(autumnLength)))
+		print(string.format("Green Season Length: [%s].",      tostring(springLength)))
+		print(string.format("Dry Season Length: [%s]. ",       tostring(summerLength)))
+	else
+		print(string.format("Summer Length: [%s]. ",       tostring(summerLength)))
+		print(string.format("Autumn Length: [%s].",        tostring(autumnLength)))
+		print(string.format("Winter Length [%s]. ",        tostring(winterLength)))
+		print(string.format("Spring Length: [%s].",        tostring(springLength)))
+	end
 
 	-- Setup Scaling
     self.base_scale = 1
@@ -42,9 +56,8 @@ local SeasonClock = Class(Widget, function(self, autumn_color_option, winter_col
     self.anim:GetAnimState():SetBank("clock01")
     self.anim:GetAnimState():SetBuild("clock_transitions")
     self.anim:GetAnimState():PlayAnimation("idle_day",true)
-
-
-    -- Determine the sized circle segment we need (360 / number of days in a year). We use the circle generated circle segments and place them around the face of the clock in a circle.
+	
+	-- Determine the sized circle segment we need (360 / number of days in a year). We use the circle generated circle segments and place them around the face of the clock in a circle.
     self.segs = {}
 	local segscale = .3
     local numsegs = totalDaysInYear
@@ -75,10 +88,12 @@ local SeasonClock = Class(Widget, function(self, autumn_color_option, winter_col
 	-- Register as a listener for the daycomplete event. Update season info string when this happens.
 	self.inst:ListenForEvent( "seasonChange", function() self:UpdateSeasonString() end, GetWorld())
 
+	
 	self:CalcSegs()
 	self:UpdateSeasonString()
 	self:SetClockHand()
 	self:Show()
+
 end)
 
 function SeasonClock:SetClockPosition(position, dayClock)
@@ -101,14 +116,26 @@ function SeasonClock:SetClockHand()
 		daysIntoSeason = daysIntoSeason
 	end
 
-	if currentSeason == "summer" then
-		daysIntoYear = daysIntoSeason  -- Since the clock starts at summer, probably a better more extensible way to do this later.
-	elseif currentSeason == "autumn" then
-		daysIntoYear = summerLength + daysIntoSeason
-	elseif currentSeason == "winter" then
-		daysIntoYear = summerLength + autumnLength + daysIntoSeason
-	elseif currentSeason == "spring" then
-		daysIntoYear = summerLength + autumnLength + winterLength + daysIntoSeason
+	if seasonManager.seasonmode == "tropical" then
+		if currentSeason == "mild" then
+			daysIntoYear = daysIntoSeason  
+		elseif currentSeason == "wet" then
+			daysIntoYear = winterLength + daysIntoSeason
+		elseif currentSeason == "green" then
+			daysIntoYear = winterLength + autumnLength + daysIntoSeason
+		elseif currentSeason == "dry" then
+			daysIntoYear = springLength + autumnLength + winterLength + daysIntoSeason
+		end
+	else
+		if currentSeason == "summer" then
+			daysIntoYear = daysIntoSeason  -- Since the clock starts at summer, probably a better more extensible way to do this later.
+		elseif currentSeason == "autumn" then
+			daysIntoYear = summerLength + daysIntoSeason
+		elseif currentSeason == "winter" then
+			daysIntoYear = summerLength + autumnLength + daysIntoSeason
+		elseif currentSeason == "spring" then
+			daysIntoYear = summerLength + autumnLength + winterLength + daysIntoSeason
+		end
 	end
 
 	local rotation = daysIntoYear * (360/totalDaysInYear)
@@ -174,7 +201,19 @@ function SeasonClock:GetSeasonSegments()
 	local springLength = 0
 	local totalDaysInYear = 0
 
-	if(reignOfGiantsEnabled) then
+	if(shipwreckedEnabled) then
+		if(seasonManager.seasonmode == "tropical") then
+			summerLength = seasonManager.dryenabled and seasonManager:GetSeasonLength(SEASONS.DRY) or 0
+			autumnLength = seasonManager.wetenabled and seasonManager:GetSeasonLength(SEASONS.WET) or 0
+			winterLength = seasonManager.mildenabled and seasonManager:GetSeasonLength(SEASONS.MILD) or 0
+			springLength = seasonManager.greenenabled and seasonManager:GetSeasonLength(SEASONS.GREEN) or 0
+		else
+			summerLength = seasonManager.summerenabled and seasonManager:GetSeasonLength(SEASONS.SUMMER) or 0
+			autumnLength = seasonManager.autumnenabled and seasonManager:GetSeasonLength(SEASONS.AUTUMN) or 0
+			winterLength = seasonManager.winterenabled and seasonManager:GetSeasonLength(SEASONS.WINTER) or 0
+			springLength = seasonManager.springenabled and seasonManager:GetSeasonLength(SEASONS.SPRING) or 0
+		end
+	elseif (reignOfGiantsEnabled) then
 		summerLength = seasonManager.summerenabled and seasonManager:GetSeasonLength(SEASONS.SUMMER) or 0
 		autumnLength = seasonManager.autumnenabled and seasonManager:GetSeasonLength(SEASONS.AUTUMN) or 0
 		winterLength = seasonManager.winterenabled and seasonManager:GetSeasonLength(SEASONS.WINTER) or 0
@@ -201,20 +240,33 @@ function SeasonClock:CalcSegs()
     local dark = false
 
     local totalDaysInYear, summerLength, autumnLength, winterLength, springLength = self:GetSeasonSegments()
+	local seasonManager = GetSeasonManager()
 
     for k,seg in pairs(self.segs) do
         local color = nil
         seg:Show()
         
-        if k >= 0 and k <= summerLength then
-        	color = self.SUMMER_COLOR
-        elseif k > summerLength and k <= (summerLength + autumnLength) then
-        	color = self.AUTUMN_COLOR
-        elseif k > (summerLength + autumnLength) and k <= (summerLength + autumnLength + winterLength) then
-        	color = self.WINTER_COLOR
-        elseif k > (summerLength + autumnLength + winterLength) and k <= (summerLength + autumnLength + winterLength + springLength) then
-        	color = self.SPRING_COLOR
-        end
+		if(seasonManager.seasonmode == "tropical") then
+			if k >= 0 and k <= winterLength then
+				color = self.WINTER_COLOR
+			elseif k > winterLength and k <= (winterLength + autumnLength) then
+				color = self.AUTUMN_COLOR
+			elseif k > (winterLength + autumnLength) and k <= (winterLength + autumnLength + springLength) then
+				color = self.SPRING_COLOR
+			elseif k > (winterLength + autumnLength + springLength) and k <= (winterLength + autumnLength + springLength + summerLength) then
+				color = self.SUMMER_COLOR
+			end
+		else
+			if k >= 0 and k <= summerLength then
+				color = self.SUMMER_COLOR
+			elseif k > summerLength and k <= (summerLength + autumnLength) then
+				color = self.AUTUMN_COLOR
+			elseif k > (summerLength + autumnLength) and k <= (summerLength + autumnLength + winterLength) then
+				color = self.WINTER_COLOR
+			elseif k > (summerLength + autumnLength + winterLength) and k <= (summerLength + autumnLength + winterLength + springLength) then
+				color = self.SPRING_COLOR
+			end
+		end
 
         if dark then
 			color = color * self.DARKEN_PERCENT
@@ -246,6 +298,14 @@ function SeasonClock:GetPrettySeasonName(season)
 		prettyName = STRINGS.UI.SANDBOXMENU.WINTER
 	elseif seasonToCheck == "spring" then
 		prettyName = STRINGS.UI.SANDBOXMENU.SPRING
+	elseif seasonToCheck == "mild" then
+		prettyName = STRINGS.UI.SANDBOXMENU.MILD
+	elseif seasonToCheck == "wet" then
+		prettyName = STRINGS.UI.SANDBOXMENU.WET
+	elseif seasonToCheck == "green" then
+		prettyName = STRINGS.UI.SANDBOXMENU.GREEN
+	elseif seasonToCheck == "dry" then
+		prettyName = STRINGS.UI.SANDBOXMENU.DRY
 	end
 
 	return prettyName
@@ -327,7 +387,7 @@ function SeasonClock:GetNextSeason()
 	local nextSeason = "ERROR"
 
 	-- Vanilla Game
-	if(not reignOfGiantsEnabled) then 
+	if(not reignOfGiantsEnabled and not shipwreckedEnabled) then 
 		if(seasonManager.seasonmode == "endlesssummer") then
 			nextSeason = SEASONS.SUMMER
 		elseif(seasonManager.seasonmode == "endlesswinter") then
@@ -337,8 +397,8 @@ function SeasonClock:GetNextSeason()
 		elseif(seasonManager.seasonmode == "cycle" and seasonManager:IsWinter()) then
 			nextSeason = SEASONS.SUMMER
 		end
-	-- Reign of Giants
-	else
+	-- Reign of Giants or Shipwrecked
+	elseif (reignOfGiantsEnabled or shipwreckedEnabled) then
 		if(seasonManager.seasonmode == "endlesssummer") then
 			nextSeason = SEASONS.SUMMER
 		elseif(seasonManager.seasonmode == "endlesswinter") then
@@ -350,7 +410,13 @@ function SeasonClock:GetNextSeason()
 		else
 			-- Cycle mode, we need to determine what seasons are enabled to properly do this.
 			local nextSeasonFound = false;
-			local nextSeasons = { [SEASONS.SPRING] = SEASONS.SUMMER, [SEASONS.SUMMER] = SEASONS.AUTUMN, [SEASONS.AUTUMN] = SEASONS.WINTER, [SEASONS.WINTER] = SEASONS.SPRING }
+			local nextSeasons = nil;
+			if(seasonManager.seasonmode == "tropical") then
+			-- Shipwrecked seasons
+				nextSeasons = { [SEASONS.MILD] = SEASONS.WET, [SEASONS.WET] = SEASONS.GREEN, [SEASONS.GREEN] = SEASONS.DRY, [SEASONS.DRY] = SEASONS.MILD }
+			else
+				nextSeasons = { [SEASONS.SPRING] = SEASONS.SUMMER, [SEASONS.SUMMER] = SEASONS.AUTUMN, [SEASONS.AUTUMN] = SEASONS.WINTER, [SEASONS.WINTER] = SEASONS.SPRING }
+			end
 			nextSeason = nextSeasons[currentSeason]
 
 			-- Loop thru the next seasons until we find the next one that is enabled.

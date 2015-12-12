@@ -12,6 +12,7 @@ api_version = 6
 -- Compatibility
 dont_starve_compatible = true
 reign_of_giants_compatible = true
+shipwrecked_compatible = true
 
 -- Can specify a custom icon for this mod!
 icon_atlas = "seasonclock_icon.xml"
